@@ -14,10 +14,6 @@
     {
       "source": "/_backend/(.*)",
       "destination": "/backend/src/index.ts"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/frontend/$1"
     }
   ]
 }
