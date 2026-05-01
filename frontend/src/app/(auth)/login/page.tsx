@@ -18,7 +18,8 @@ export default function LoginPage() {
     
     // For now, mock login. In reality, call the API.
     try {
-      const res = await fetch('http://localhost:5005/api/v1/auth/login', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? '/_backend' : 'http://localhost:5005');
+      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
