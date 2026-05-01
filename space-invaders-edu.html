@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Invaders EDU</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --cyan: #00f5ff;
+    --magenta: #ff00aa;
+    --green: #39ff14;
+    --purple: #7b2fff;
+    --dark: #080818;
+    --panel-bg: rgba(8,8,30,0.95);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+  }
+
+  /* ── GAME WRAPPER (easy embed: just drop this div) ── */
+  #game-wrapper {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    border: 3px solid var(--cyan);
+    box-shadow: 0 0 40px var(--cyan), inset 0 0 40px rgba(0,245,255,0.03);
+    overflow: hidden;
+    background: var(--dark);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── HUD ── */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 18px;
+    background: rgba(0,0,0,0.7);
+    border-bottom: 2px solid var(--cyan);
+    pointer-events: none;
+    z-index: 10;
+  }
+  #hud-score { color: var(--cyan); font-size: 10px; }
+  #hud-lives { color: var(--magenta); font-size: 10px; display: flex; align-items: center; gap: 6px; }
+  .heart { color: var(--magenta); font-size: 14px; }
+
+  /* ── MCQ OVERLAY ── */
+  #mcq-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  #mcq-overlay.show { display: flex; }
+
+  #mcq-box {
+    background: var(--panel-bg);
+    border: 2px solid var(--cyan);
+    box-shadow: 0 0 30px var(--cyan), 0 0 60px rgba(0,245,255,0.15);
+    border-radius: 4px;
+    padding: 30px 28px;
+    max-width: 500px;
+    width: 90%;
+    animation: popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes popIn {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  #mcq-title {
+    font-size: 7px;
+    color: var(--magenta);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  #mcq-pts {
+    display: inline-block;
+    background: var(--magenta);
+    color: #000;
+    font-size: 6px;
+    padding: 2px 6px;
+    margin-bottom: 14px;
+    border-radius: 2px;
+  }
+  #mcq-question {
+    color: #fff;
+    font-size: 9px;
+    line-height: 1.8;
+    margin-bottom: 22px;
+  }
+  .mcq-option {
+    display: block;
+    width: 100%;
+    background: rgba(0,245,255,0.05);
+    border: 1px solid rgba(0,245,255,0.3);
+    color: var(--cyan);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 2px;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    line-height: 1.6;
+  }
+  .mcq-option:hover {
+    background: rgba(0,245,255,0.15);
+    border-color: var(--cyan);
+    transform: translateX(4px);
+  }
+  .mcq-option.correct {
+    background: rgba(57,255,20,0.2);
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .mcq-option.wrong {
+    background: rgba(255,0,80,0.2);
+    border-color: #ff0050;
+    color: #ff0050;
+  }
+  #mcq-feedback {
+    font-size: 8px;
+    margin-top: 14px;
+    min-height: 18px;
+    line-height: 1.6;
+  }
+  #mcq-feedback.correct { color: var(--green); }
+  #mcq-feedback.wrong   { color: #ff0050; }
+
+  #mcq-continue {
+    display: none;
+    margin-top: 16px;
+    background: var(--cyan);
+    color: #000;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+    transition: background 0.15s;
+  }
+  #mcq-continue:hover { background: #fff; }
+
+  /* ── GAME OVER / WIN ── */
+  #end-screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    text-align: center;
+    gap: 20px;
+  }
+  #end-screen.show { display: flex; }
+  #end-title { color: var(--magenta); font-size: 22px; text-shadow: 0 0 20px var(--magenta); }
+  #end-score { color: var(--cyan); font-size: 11px; }
+  #end-restart {
+    background: var(--magenta);
+    color: #000;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    padding: 12px 24px;
+    border: none;
+    cursor: pointer;
+    border-radius: 2px;
+    margin-top: 10px;
+    transition: transform 0.1s;
+  }
+  #end-restart:hover { transform: scale(1.05); }
+
+  /* ── START SCREEN ── */
+  #start-screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.93);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    text-align: center;
+    gap: 16px;
+  }
+  #start-title {
+    color: var(--cyan);
+    font-size: 18px;
+    text-shadow: 0 0 30px var(--cyan);
+    line-height: 1.5;
+  }
+  #start-sub { color: var(--magenta); font-size: 8px; line-height: 1.8; max-width: 420px; }
+  #start-btn {
+    background: var(--cyan);
+    color: #000;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 14px 30px;
+    border: none;
+    cursor: pointer;
+    border-radius: 2px;
+    margin-top: 16px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── LEVEL BANNER ── */
+  #level-banner {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 150;
+    pointer-events: none;
+  }
+  #level-banner.show { display: flex; }
+  #level-text {
+    color: var(--cyan);
+    font-size: 20px;
+    text-shadow: 0 0 30px var(--cyan);
+    animation: zoomFade 1.8s ease forwards;
+  }
+  @keyframes zoomFade {
+    0%   { transform: scale(0.5); opacity: 0; }
+    30%  { transform: scale(1.1); opacity: 1; }
+    70%  { transform: scale(1);   opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-score">SCORE: <span id="score-val">0000</span></div>
+    <div id="hud-lives">LIVES: <span id="lives-val">❤️❤️❤️</span></div>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="start-screen">
+    <div id="start-title">SPACE<br>INVADERS EDU</div>
+    <div id="start-sub">Shoot down the alien invaders!<br>When hit by an alien, answer correctly<br>to recover your lost life!</div>
+    <button id="start-btn" onclick="startGame()">PRESS START</button>
+  </div>
+
+  <!-- MCQ OVERLAY -->
+  <div id="mcq-overlay">
+    <div id="mcq-box">
+      <div id="mcq-title">🚨 YOU'VE BEEN HIT! 🚨</div>
+      <div id="mcq-pts"></div>
+      <div id="mcq-question"></div>
+      <div id="mcq-options"></div>
+      <div id="mcq-feedback"></div>
+      <button id="mcq-continue" onclick="closeMCQ()">CONTINUE →</button>
+    </div>
+  </div>
+
+  <!-- LEVEL BANNER -->
+  <div id="level-banner"><div id="level-text"></div></div>
+
+  <!-- END SCREEN -->
+  <div id="end-screen">
+    <div id="end-title">GAME OVER</div>
+    <div id="end-score">FINAL SCORE: <span id="final-score">0</span></div>
+    <button id="end-restart" onclick="startGame()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  QUESTION BANK — swap out freely for your subject
+// ═══════════════════════════════════════════════════
+const QUESTION_BANK = [
+  { q: "What is the powerhouse of the cell?", opts: ["Nucleus","Mitochondria","Ribosome","Golgi body"], ans: 1, pts: 100 },
+  { q: "Which planet is closest to the Sun?", opts: ["Venus","Earth","Mercury","Mars"], ans: 2, pts: 100 },
+  { q: "What is 7 × 8?", opts: ["54","56","62","48"], ans: 1, pts: 100 },
+  { q: "What gas do plants absorb from the air?", opts: ["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"], ans: 2, pts: 100 },
+  { q: "Who wrote Romeo and Juliet?", opts: ["Dickens","Shakespeare","Hemingway","Tolkien"], ans: 1, pts: 150 },
+  { q: "What is the chemical symbol for water?", opts: ["WO","H2O","HO2","W2O"], ans: 1, pts: 100 },
+  { q: "How many sides does a hexagon have?", opts: ["5","7","6","8"], ans: 2, pts: 100 },
+  { q: "What is the speed of light (approx)?", opts: ["300,000 km/s","150,000 km/s","500,000 km/s","1,000,000 km/s"], ans: 0, pts: 150 },
+  { q: "What is the largest ocean on Earth?", opts: ["Atlantic","Indian","Arctic","Pacific"], ans: 3, pts: 100 },
+  { q: "What year did World War II end?", opts: ["1943","1944","1945","1946"], ans: 2, pts: 150 },
+  { q: "What is the square root of 144?", opts: ["11","12","13","14"], ans: 1, pts: 100 },
+  { q: "DNA stands for?", opts: ["Deoxyribonucleic Acid","Diribose Nucleic Acid","Deoxyribose Neutral Atom","None of these"], ans: 0, pts: 200 },
+  { q: "Which element has atomic number 1?", opts: ["Helium","Oxygen","Carbon","Hydrogen"], ans: 3, pts: 150 },
+  { q: "What is the capital of France?", opts: ["Berlin","Madrid","Paris","Rome"], ans: 2, pts: 100 },
+  { q: "The Great Wall of China was built to protect against?", opts: ["Mongols","Romans","Vikings","Persians"], ans: 0, pts: 150 },
+];
+
+// ═══════════════════════════════════════════════════
+//  GAME ENGINE
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const W = 800, H = 600;
+const HUD_H = 40;
+
+let gameState = 'start'; // start | playing | mcq | gameover | win
+let score = 0, lives = 3, level = 1;
+let player, bullets, aliens, alienBullets, stars;
+let keys = {};
+let animId;
+let mcqPending = null; // alien that triggered MCQ
+let usedQuestions = new Set();
+let lastShot = 0;
+let alienDir = 1, alienDropPending = false;
+let alienShootTimer = 0;
+let gameLoop;
+
+// ── Pixel-art alien sprites (emoji-based, drawn to canvas) ──
+const ALIEN_TYPES = [
+  { emoji: '👾', color: '#cc55ff', points: 30 },
+  { emoji: '🤖', color: '#39ff14', points: 20 },
+  { emoji: '👻', color: '#ff6600', points: 10 },
+];
+
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 120; i++) {
+    stars.push({ x: Math.random()*W, y: Math.random()*H, r: Math.random()*1.5+0.3, speed: Math.random()*0.4+0.1 });
+  }
+}
+
+function initGame() {
+  score = 0; lives = 3; level = 1;
+  lastShot = 0; alienDir = 1; alienDropPending = false; alienShootTimer = 0;
+  usedQuestions.clear();
+  updateHUD();
+  initStars();
+  spawnPlayer();
+  spawnAliens();
+  bullets = []; alienBullets = [];
+}
+
+function spawnPlayer() {
+  player = { x: W/2, y: H - 70, w: 44, h: 30, speed: 5, shooting: false };
+}
+
+function spawnAliens() {
+  aliens = [];
+  const cols = 9, rows = 4;
+  const startX = 90, startY = HUD_H + 60;
+  const gapX = 72, gapY = 60;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const type = r < 1 ? 0 : r < 3 ? 1 : 2;
+      aliens.push({
+        x: startX + c * gapX,
+        y: startY + r * gapY,
+        w: 40, h: 36,
+        type,
+        alive: true,
+        frame: 0,
+        frameTimer: 0,
+      });
+    }
+  }
+}
+
+function updateHUD() {
+  document.getElementById('score-val').textContent = String(score).padStart(4,'0');
+  const hearts = '❤️'.repeat(Math.max(0,lives));
+  document.getElementById('lives-val').textContent = lives > 0 ? hearts : '💀';
+}
+
+// ── Draw functions ──
+function drawStars() {
+  stars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random()*W; }
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random()*0.4})`;
+    ctx.fill();
+  });
+}
+
+function drawPlayer() {
+  const { x, y, w, h } = player;
+  // Cannon body
+  ctx.fillStyle = '#00f5ff';
+  ctx.fillRect(x - w/2, y + 10, w, h - 10);
+  // Barrel
+  ctx.fillRect(x - 5, y, 10, 14);
+  // Glow
+  ctx.shadowColor = '#00f5ff';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = 'rgba(0,245,255,0.15)';
+  ctx.fillRect(x - w/2 - 4, y + 6, w + 8, h - 6);
+  ctx.shadowBlur = 0;
+  // Engine flame
+  ctx.fillStyle = `rgba(255,${100+Math.random()*80},0,0.8)`;
+  ctx.fillRect(x - 8, y + h + 10, 6, 6 + Math.random()*6);
+  ctx.fillRect(x + 2, y + h + 10, 6, 4 + Math.random()*8);
+}
+
+function drawAlien(a) {
+  if (!a.alive) return;
+  const { x, y, w, h, type } = a;
+  const info = ALIEN_TYPES[type];
+  ctx.save();
+  ctx.font = `${w}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Glow
+  ctx.shadowColor = info.color;
+  ctx.shadowBlur = 10;
+  ctx.fillText(info.emoji, x + w/2, y + h/2);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawBullet(b) {
+  ctx.fillStyle = b.isPlayer ? '#00f5ff' : '#ff00aa';
+  ctx.shadowColor = b.isPlayer ? '#00f5ff' : '#ff00aa';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(b.x - 2, b.y, 4, 14);
+  ctx.shadowBlur = 0;
+}
+
+function drawExplosion(x, y, progress) {
+  const alpha = 1 - progress;
+  const r = progress * 40;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(255,180,0,${alpha * 0.6})`;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.6, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(255,255,255,${alpha * 0.8})`;
+  ctx.fill();
+}
+
+let explosions = [];
+
+// ── Input ──
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if ((e.code === 'Space') && gameState === 'playing') {
+    e.preventDefault();
+    tryShoot();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+function tryShoot() {
+  const now = Date.now();
+  if (now - lastShot < 350) return;
+  lastShot = now;
+  bullets.push({ x: player.x, y: player.y, isPlayer: true });
+}
+
+// ── Alien movement ──
+let alienMoveTimer = 0;
+function moveAliens(dt) {
+  alienMoveTimer += dt;
+  // Much slower: high base interval, minimal level scaling
+  const aliveCount = aliens.filter(a => a.alive).length;
+  // As fewer aliens remain they speed up slightly, but stay manageable
+  const interval = Math.max(180, 900 - aliveCount * 8 - level * 20);
+  if (alienMoveTimer < interval) return;
+  alienMoveTimer = 0;
+
+  const alive = aliens.filter(a => a.alive);
+  if (!alive.length) return;
+
+  let hitWall = false;
+  alive.forEach(a => {
+    a.x += alienDir * (5 + level * 0.8); // slow lateral step
+    if (a.x < 10 || a.x + a.w > W - 10) hitWall = true;
+  });
+  if (hitWall) {
+    alienDir *= -1;
+    alive.forEach(a => { a.y += 16; });
+    if (alive.some(a => a.y + a.h >= player.y)) {
+      gameOver();
+    }
+  }
+}
+
+function alienShoot(dt) {
+  alienShootTimer += dt;
+  // Slow shoot rate: one shot every ~3s on level 1, slightly faster later
+  const interval = Math.max(1800, 3200 - level * 250);
+  if (alienShootTimer < interval) return;
+  alienShootTimer = 0;
+  const alive = aliens.filter(a => a.alive);
+  if (!alive.length) return;
+  // Only bottom aliens of each column shoot
+  const cols = {};
+  alive.forEach(a => {
+    const col = Math.round(a.x / 72);
+    if (!cols[col] || cols[col].y < a.y) cols[col] = a;
+  });
+  const shooters = Object.values(cols);
+  const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  alienBullets.push({ x: shooter.x + shooter.w/2, y: shooter.y + shooter.h, isPlayer: false });
+}
+
+// ── Collision ──
+function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+}
+
+function checkCollisions() {
+  // Player bullets vs aliens — just destroy, no MCQ here
+  bullets.forEach(b => {
+    if (!b.isPlayer || b.dead) return;
+    aliens.forEach(a => {
+      if (!a.alive || b.dead) return;
+      if (rectsOverlap(b.x-2, b.y, 4, 14, a.x, a.y, a.w, a.h)) {
+        b.dead = true;
+        a.alive = false;
+        explosions.push({ x: a.x+a.w/2, y: a.y+a.h/2, t: 0 });
+        score += ALIEN_TYPES[a.type].points;
+        updateHUD();
+        // Check win condition
+        if (!aliens.some(al => al.alive)) nextLevel();
+      }
+    });
+  });
+
+  // Alien bullets vs player — THIS triggers the MCQ
+  alienBullets.forEach(b => {
+    if (b.dead) return;
+    if (rectsOverlap(b.x-2, b.y, 4, 14, player.x - player.w/2, player.y, player.w, player.h)) {
+      b.dead = true;
+      explosions.push({ x: player.x, y: player.y + 15, t: 0 });
+      triggerMCQ(); // MCQ gives chance to recover the life
+    }
+  });
+
+  // Cleanup
+  bullets      = bullets.filter(b => !b.dead && b.y > 0);
+  alienBullets = alienBullets.filter(b => !b.dead && b.y < H);
+}
+
+function loseLife() {
+  lives--;
+  updateHUD();
+  if (lives <= 0) gameOver();
+}
+
+// ── MCQ System ──
+function triggerMCQ() {
+  gameState = 'mcq';
+  cancelAnimationFrame(animId);
+
+  // Always lose a life first — correct answer recovers it
+  lives--;
+  updateHUD();
+
+  // Pick unused question
+  let pool = QUESTION_BANK.map((q,i) => i).filter(i => !usedQuestions.has(i));
+  if (!pool.length) { usedQuestions.clear(); pool = QUESTION_BANK.map((_,i) => i); }
+  const idx = pool[Math.floor(Math.random() * pool.length)];
+  usedQuestions.add(idx);
+  const q = QUESTION_BANK[idx];
+
+  document.getElementById('mcq-pts').textContent = 'ANSWER CORRECTLY TO RECOVER YOUR LIFE!';
+  document.getElementById('mcq-question').textContent = q.q;
+  document.getElementById('mcq-feedback').textContent = '';
+  document.getElementById('mcq-feedback').className = '';
+  document.getElementById('mcq-continue').style.display = 'none';
+
+  const optsEl = document.getElementById('mcq-options');
+  optsEl.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'mcq-option';
+    btn.textContent = `${String.fromCharCode(65+i)}.  ${opt}`;
+    btn.onclick = () => answerMCQ(i, q, btn);
+    optsEl.appendChild(btn);
+  });
+
+  document.getElementById('mcq-overlay').classList.add('show');
+}
+
+function answerMCQ(chosen, q, btn) {
+  document.querySelectorAll('.mcq-option').forEach(b => b.onclick = null);
+  const allBtns = document.querySelectorAll('.mcq-option');
+
+  if (chosen === q.ans) {
+    btn.classList.add('correct');
+    document.getElementById('mcq-feedback').textContent = '✓ CORRECT! Life recovered. Keep going!';
+    document.getElementById('mcq-feedback').className = 'correct';
+    lives++; // recover the life
+    score += q.pts;
+    updateHUD();
+  } else {
+    btn.classList.add('wrong');
+    allBtns[q.ans].classList.add('correct');
+    document.getElementById('mcq-feedback').textContent = '✗ WRONG! Life lost. The correct answer is highlighted.';
+    document.getElementById('mcq-feedback').className = 'wrong';
+    // Life already deducted above — check game over
+    if (lives <= 0) {
+      document.getElementById('mcq-continue').style.display = 'block';
+      document.getElementById('mcq-continue').textContent = 'GAME OVER';
+      document.getElementById('mcq-continue').onclick = () => {
+        document.getElementById('mcq-overlay').classList.remove('show');
+        gameOver();
+      };
+      return;
+    }
+  }
+
+  document.getElementById('mcq-continue').style.display = 'block';
+  document.getElementById('mcq-continue').textContent = 'CONTINUE →';
+  document.getElementById('mcq-continue').onclick = closeMCQ;
+}
+
+function closeMCQ() {
+  document.getElementById('mcq-overlay').classList.remove('show');
+  if (gameState !== 'gameover') {
+    const aliveLeft = aliens.filter(a => a.alive).length;
+    if (aliveLeft === 0) {
+      nextLevel();
+    } else {
+      gameState = 'playing';
+      requestAnimationFrame(loop);
+    }
+  }
+}
+
+// ── Level management ──
+function nextLevel() {
+  level++;
+  gameState = 'levelup';
+  const banner = document.getElementById('level-banner');
+  document.getElementById('level-text').textContent = `LEVEL ${level}`;
+  banner.classList.add('show');
+  setTimeout(() => {
+    banner.classList.remove('show');
+    spawnAliens();
+    bullets = []; alienBullets = [];
+    gameState = 'playing';
+    requestAnimationFrame(loop);
+  }, 1900);
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  cancelAnimationFrame(animId);
+  document.getElementById('final-score').textContent = score;
+  const endTitle = document.getElementById('end-title');
+  endTitle.textContent = lives <= 0 ? 'GAME OVER' : 'YOU WIN! 🎉';
+  endTitle.style.color = lives <= 0 ? 'var(--magenta)' : 'var(--cyan)';
+  document.getElementById('end-screen').classList.add('show');
+}
+
+// ── Main loop ──
+let lastTime = 0;
+function loop(ts = 0) {
+  if (gameState !== 'playing') return;
+  const dt = ts - lastTime;
+  lastTime = ts;
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#080818';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  drawStars();
+
+  // Move player
+  if (keys['ArrowLeft'] || keys['KeyA']) player.x = Math.max(player.w/2, player.x - player.speed);
+  if (keys['ArrowRight'] || keys['KeyD']) player.x = Math.min(W - player.w/2, player.x + player.speed);
+  if (keys['Space'] || keys['ArrowUp']) tryShoot();
+
+  // Bullets
+  bullets.forEach(b => { b.y -= 9; });
+  alienBullets.forEach(b => { b.y += 5 + level; });
+
+  // Aliens
+  moveAliens(dt);
+  alienShoot(dt);
+
+  // Collisions
+  checkCollisions();
+
+  // Draw everything
+  drawPlayer();
+  aliens.forEach(drawAlien);
+  bullets.forEach(drawBullet);
+  alienBullets.forEach(drawBullet);
+
+  // Explosions
+  explosions = explosions.filter(e => e.t < 1);
+  explosions.forEach(e => {
+    drawExplosion(e.x, e.y, e.t);
+    e.t += 0.06;
+  });
+
+  animId = requestAnimationFrame(loop);
+}
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('end-screen').classList.remove('show');
+  document.getElementById('mcq-overlay').classList.remove('show');
+  document.getElementById('level-banner').classList.remove('show');
+  cancelAnimationFrame(animId);
+  initGame();
+  gameState = 'playing';
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// ── Touch support (mobile) ──
+let touchStartX = 0;
+canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+canvas.addEventListener('touchmove', e => {
+  if (gameState !== 'playing') return;
+  e.preventDefault();
+  const dx = e.touches[0].clientX - touchStartX;
+  player.x = Math.max(player.w/2, Math.min(W - player.w/2, player.x + dx * 0.5));
+  touchStartX = e.touches[0].clientX;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { if (gameState === 'playing') tryShoot(); });
+
+// Init stars for start screen
+initStars();
+(function startScreenLoop() {
+  if (gameState !== 'start') return;
+  ctx.fillStyle = '#080818';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+  requestAnimationFrame(startScreenLoop);
+})();
+</script>
+</body>
+</html>

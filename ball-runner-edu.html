@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ball Runner EDU</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Orbitron:wght@700;900&display=swap');
+
+:root {
+  --bg: #120f2e;
+  --lane-left: #d4a0c8;
+  --lane-mid: #a8c8d8;
+  --lane-right: #c8b8e8;
+  --rail: #5533aa;
+  --ball: #e8e0f0;
+  --rock: #9a9aaa;
+  --heart: #ff4466;
+  --gold: #ffd700;
+  --green: #44ff88;
+  --red: #ff4455;
+  --white: #ffffff;
+  --panel: rgba(10,8,30,0.96);
+  --cyan: #66ddff;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'Nunito', sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+#game-wrapper {
+  position: relative;
+  width: 800px;
+  height: 600px;
+  overflow: hidden;
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+canvas { display: block; width: 800px; height: 600px; }
+
+/* ── HUD ── */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  pointer-events: none;
+  z-index: 10;
+}
+.hud-block { text-align: center; }
+.hud-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 3px;
+  margin-bottom: 2px;
+}
+.hud-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 22px;
+  color: #fff;
+  font-weight: 900;
+}
+#hud-hearts { display: flex; gap: 8px; align-items: center; }
+.heart-icon {
+  font-size: 22px;
+  transition: transform 0.2s, opacity 0.2s;
+  filter: drop-shadow(0 0 6px var(--heart));
+}
+.heart-icon.lost { opacity: 0.2; transform: scale(0.7); }
+
+/* ── SCREENS ── */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  text-align: center;
+  gap: 16px;
+}
+
+/* START */
+#start-screen { background: rgba(10,8,30,0.97); }
+#start-screen .game-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 36px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 40px var(--cyan), 0 0 80px rgba(102,221,255,0.3);
+  line-height: 1.2;
+}
+#start-screen .subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  max-width: 360px;
+  line-height: 1.7;
+}
+.btn-primary {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--cyan);
+  color: #000;
+  border: none;
+  padding: 14px 36px;
+  border-radius: 50px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 24px rgba(102,221,255,0.4);
+}
+.btn-primary:hover { transform: scale(1.06); box-shadow: 0 0 36px rgba(102,221,255,0.6); }
+
+/* END */
+#end-screen { background: rgba(10,8,30,0.95); display: none; }
+#end-screen.show { display: flex; }
+#end-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--heart);
+  text-shadow: 0 0 30px var(--heart);
+}
+#end-stats {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  line-height: 2;
+}
+#end-stats span { color: var(--cyan); }
+
+/* MCQ */
+#mcq-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5,3,20,0.88);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+#mcq-overlay.show { display: flex; }
+
+#mcq-box {
+  background: var(--panel);
+  border: 1.5px solid rgba(102,221,255,0.35);
+  border-radius: 16px;
+  padding: 32px 28px 24px;
+  max-width: 480px;
+  width: 92%;
+  box-shadow: 0 0 60px rgba(102,221,255,0.12), 0 24px 64px rgba(0,0,0,0.6);
+  animation: slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp {
+  from { transform: translateY(40px) scale(0.92); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.mcq-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,68,86,0.15);
+  border: 1px solid rgba(255,68,86,0.4);
+  border-radius: 50px;
+  padding: 4px 12px;
+  font-size: 10px;
+  color: #ff7788;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+  font-family: 'Orbitron', sans-serif;
+}
+.mcq-recover {
+  font-size: 10px;
+  color: var(--green);
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 18px;
+  font-family: 'Orbitron', sans-serif;
+  opacity: 0.85;
+}
+#mcq-question {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.mcq-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: rgba(255,255,255,0.85);
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px 16px;
+  margin-bottom: 9px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.mcq-opt:hover { background: rgba(102,221,255,0.08); border-color: rgba(102,221,255,0.4); transform: translateX(3px); }
+.mcq-opt .opt-letter {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(102,221,255,0.12);
+  border: 1px solid rgba(102,221,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-family: 'Orbitron', sans-serif;
+  color: var(--cyan);
+  flex-shrink: 0;
+}
+.mcq-opt.correct { background: rgba(68,255,136,0.15); border-color: var(--green); color: var(--green); }
+.mcq-opt.correct .opt-letter { background: rgba(68,255,136,0.2); border-color: var(--green); color: var(--green); }
+.mcq-opt.wrong { background: rgba(255,68,85,0.15); border-color: var(--red); color: var(--red); }
+.mcq-opt.wrong .opt-letter { background: rgba(255,68,85,0.2); border-color: var(--red); color: var(--red); }
+
+#mcq-feedback {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 12px;
+  min-height: 20px;
+  line-height: 1.5;
+}
+#mcq-feedback.correct { color: var(--green); }
+#mcq-feedback.wrong { color: var(--red); }
+
+#mcq-continue {
+  display: none;
+  margin-top: 16px;
+  width: 100%;
+  background: var(--cyan);
+  color: #000;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: transform 0.1s;
+}
+#mcq-continue:hover { transform: scale(1.02); }
+
+/* ── LEVEL FLASH ── */
+#level-flash {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 30;
+}
+#level-flash.show { display: flex; }
+#level-flash-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--cyan);
+  text-shadow: 0 0 40px var(--cyan);
+  animation: flashAnim 1.5s ease forwards;
+}
+@keyframes flashAnim {
+  0%   { opacity:0; transform: scale(0.6); }
+  25%  { opacity:1; transform: scale(1.05); }
+  75%  { opacity:1; transform: scale(1); }
+  100% { opacity:0; transform: scale(1.3); }
+}
+
+/* ── HIT FLASH ── */
+#hit-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,50,50,0.25);
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+  <canvas id="c" width="800" height="600"></canvas>
+
+  <!-- HIT FLASH -->
+  <div id="hit-flash"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">SCORE</div>
+      <div class="hud-value" id="h-score">0</div>
+    </div>
+    <div id="hud-hearts">
+      <span class="heart-icon" id="h1">❤️</span>
+      <span class="heart-icon" id="h2">❤️</span>
+      <span class="heart-icon" id="h3">❤️</span>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">STREAK</div>
+      <div class="hud-value" id="h-streak">0</div>
+    </div>
+  </div>
+
+  <!-- START -->
+  <div class="screen" id="start-screen">
+    <div class="game-title">BALL<br>RUNNER</div>
+    <div class="subtitle">Dodge the rocks rolling down the track.<br>Get hit? Answer a question to recover your life!</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.35);font-family:'Orbitron',sans-serif;letter-spacing:2px;">← → ARROW KEYS OR A / D</div>
+    <button class="btn-primary" onclick="startGame()">PLAY</button>
+  </div>
+
+  <!-- MCQ -->
+  <div id="mcq-overlay">
+    <div id="mcq-box">
+      <div class="mcq-badge">💥 YOU'VE BEEN HIT!</div>
+      <div class="mcq-recover">✦ ANSWER CORRECTLY TO RECOVER YOUR LIFE ✦</div>
+      <div id="mcq-question"></div>
+      <div id="mcq-options"></div>
+      <div id="mcq-feedback"></div>
+      <button id="mcq-continue">CONTINUE →</button>
+    </div>
+  </div>
+
+  <!-- LEVEL FLASH -->
+  <div id="level-flash"><div id="level-flash-text"></div></div>
+
+  <!-- END -->
+  <div class="screen" id="end-screen">
+    <div id="end-title">GAME OVER</div>
+    <div id="end-stats">
+      SCORE <span id="e-score">0</span> &nbsp;·&nbsp; BEST STREAK <span id="e-streak">0</span>
+    </div>
+    <button class="btn-primary" onclick="startGame()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  QUESTION BANK
+// ═══════════════════════════════════════════════════
+const QS = [
+  { q:"What is the powerhouse of the cell?", opts:["Nucleus","Mitochondria","Ribosome","Golgi body"], ans:1 },
+  { q:"Which planet is closest to the Sun?", opts:["Venus","Earth","Mercury","Mars"], ans:2 },
+  { q:"What is 7 × 8?", opts:["54","56","62","48"], ans:1 },
+  { q:"What gas do plants absorb from the air?", opts:["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"], ans:2 },
+  { q:"Who wrote Romeo and Juliet?", opts:["Dickens","Shakespeare","Hemingway","Tolkien"], ans:1 },
+  { q:"What is the chemical symbol for water?", opts:["WO","H2O","HO2","W2O"], ans:1 },
+  { q:"How many sides does a hexagon have?", opts:["5","7","6","8"], ans:2 },
+  { q:"Approximate speed of light?", opts:["300,000 km/s","150,000 km/s","500,000 km/s","1,000,000 km/s"], ans:0 },
+  { q:"What is the largest ocean on Earth?", opts:["Atlantic","Indian","Arctic","Pacific"], ans:3 },
+  { q:"What year did World War II end?", opts:["1943","1944","1945","1946"], ans:2 },
+  { q:"What is the square root of 144?", opts:["11","12","13","14"], ans:1 },
+  { q:"DNA stands for?", opts:["Deoxyribonucleic Acid","Diribose Nucleic Acid","Deoxyribose Neutral Atom","None"], ans:0 },
+  { q:"Which element has atomic number 1?", opts:["Helium","Oxygen","Carbon","Hydrogen"], ans:3 },
+  { q:"What is the capital of France?", opts:["Berlin","Madrid","Paris","Rome"], ans:2 },
+  { q:"How many continents are on Earth?", opts:["5","6","7","8"], ans:2 },
+  { q:"What is 15% of 200?", opts:["20","25","30","35"], ans:2 },
+  { q:"Who painted the Mona Lisa?", opts:["Raphael","Michelangelo","Da Vinci","Botticelli"], ans:2 },
+  { q:"Boiling point of water in Celsius?", opts:["90°C","95°C","100°C","110°C"], ans:2 },
+];
+
+// ═══════════════════════════════════════════════════
+//  CANVAS
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = 800, H = 600;
+
+// ═══════════════════════════════════════════════════
+//  PERSPECTIVE HELPERS
+// ═══════════════════════════════════════════════════
+const VPX = W / 2;
+const VPY = 200;           // horizon y — lower = more road visible
+
+// 4 divider x-coords at bottom and top for 3 lanes
+const BOT = [80, 293, 507, 720];
+// Wider convergence point — lanes visible much earlier
+const TOP = [VPX - 28, VPX - 9, VPX + 9, VPX + 28];
+
+// interpolate divider x at depth t (0=horizon,1=bottom)
+function divX(i, t) { return TOP[i] + (BOT[i] - TOP[i]) * t; }
+
+// lane center x at depth t — lane may be a FLOAT for smooth visual lerp
+function laneCX(lane, t) {
+  const lo = Math.max(0, Math.min(2, Math.floor(lane)));
+  const hi = Math.min(2, lo + 1);
+  const frac = lane - lo;
+  const cLo = (divX(lo, t) + divX(lo + 1, t)) * 0.5;
+  const cHi = (divX(hi, t) + divX(hi + 1, t)) * 0.5;
+  return cLo + (cHi - cLo) * frac;
+}
+
+// lane pixel width at depth t — always integer lane
+function laneW(lane, t) {
+  const l = Math.max(0, Math.min(2, Math.round(lane)));
+  return divX(l + 1, t) - divX(l, t);
+}
+
+// world-y from depth t
+function worldY(t) { return VPY + (H - VPY) * t; }
+
+// ═══════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════
+let gs          = null;
+let animId      = null;
+let usedQs      = new Set();
+let gameRunning = false;
+let scrollPos   = 0;
+
+// Player lane is tracked as two integers: current and target.
+// Visual x is smoothly interpolated via laneVisual (0–2 float).
+function initGS() {
+  return {
+    state:        'playing',  // 'playing' | 'mcq' | 'gameover'
+    laneCur:      1,          // integer 0/1/2 — where ball currently "is" for collision
+    laneVis:      1.0,        // float — visual display position, lerps toward laneCur
+    score:        0,
+    streak:       0,
+    bestStreak:   0,
+    lives:        3,
+    speed:        1.0,
+    distance:     0,
+    obstacles:    [],
+    particles:    [],
+    stars:        makeStars(),
+    spawnTimer:   0,
+    spawnInterval:2400,       // ms
+    lastTime:     0,
+    invincible:   0,          // ms remaining
+    level:        1,
+    nextLevelAt:  800,
+    hitLocked:    false,      // prevents double-hit in same frame
+  };
+}
+
+// ═══════════════════════════════════════════════════
+//  STARS
+// ═══════════════════════════════════════════════════
+function makeStars() {
+  const arr = [];
+  for (let i = 0; i < 90; i++)
+    arr.push({ x: Math.random()*W, y: Math.random()*(VPY-20)+4,
+               r: Math.random()*1.3+0.2, phase: Math.random()*Math.PI*2 });
+  return arr;
+}
+function drawStars(stars) {
+  const t = Date.now() * 0.001;
+  stars.forEach(s => {
+    const a = 0.35 + 0.45 * Math.abs(Math.sin(t + s.phase));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fill();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAW TRACK
+// ═══════════════════════════════════════════════════
+const LANE_COLORS = ['#c9a2d9', '#a2c9d9', '#bcb4ee'];
+
+function drawTrack(scroll) {
+  // Lane fills
+  for (let l = 0; l < 3; l++) {
+    ctx.beginPath();
+    ctx.moveTo(divX(l,   0), VPY);
+    ctx.lineTo(divX(l+1, 0), VPY);
+    ctx.lineTo(divX(l+1, 1), H + 2);
+    ctx.lineTo(divX(l,   1), H + 2);
+    ctx.closePath();
+    ctx.fillStyle = LANE_COLORS[l];
+    ctx.fill();
+  }
+
+  // Rail lines
+  for (let i = 0; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(divX(i, 0), VPY);
+    ctx.lineTo(divX(i, 1), H);
+    ctx.strokeStyle = (i === 0 || i === 3) ? '#3a1888' : 'rgba(90,50,180,0.5)';
+    ctx.lineWidth   = (i === 0 || i === 3) ? 3 : 1.5;
+    ctx.stroke();
+  }
+
+  // Scrolling centre dashes — 10 segments per lane
+  const SEG = 10;
+  for (let l = 0; l < 3; l++) {
+    for (let d = 0; d < SEG; d++) {
+      const t0 = ((d / SEG) + scroll) % 1;
+      const t1 = t0 + 0.035;
+      if (t1 > 1 || t0 < 0.01) continue;
+      ctx.beginPath();
+      ctx.moveTo(laneCX(l, t0), worldY(t0));
+      ctx.lineTo(laneCX(l, t1), worldY(t1));
+      ctx.strokeStyle = 'rgba(70,35,155,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Horizon fog
+  const fog = ctx.createLinearGradient(0, VPY - 30, 0, VPY + 28);
+  fog.addColorStop(0, 'rgba(12,9,38,1)');
+  fog.addColorStop(1, 'rgba(12,9,38,0)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, VPY - 30, W, 58);
+}
+
+// ═══════════════════════════════════════════════════
+//  BALL
+// ═══════════════════════════════════════════════════
+const PLAYER_T = 0.87;   // depth where player sits
+
+function drawBall(laneVis, invincible) {
+  // Clamp to valid range before any math
+  const lv = Math.max(0, Math.min(2, laneVis));
+  const cx = laneCX(lv, PLAYER_T);
+  const cy = worldY(PLAYER_T);
+  const r  = Math.max(4, laneW(1, PLAYER_T) * 0.33); // fixed reference lane, guarded
+
+  // Ground shadow
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 0.72, r * 0.75, r * 0.2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fill();
+
+  // Invincibility shield
+  if (invincible > 0) {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.018);
+    const sr = r * (1.45 + pulse * 0.18);
+    ctx.beginPath();
+    ctx.arc(cx, cy, sr, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,210,60,${0.13 + pulse * 0.09})`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, sr, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,210,60,${0.5 + pulse * 0.3})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Ball body — gradient in world space, inner radius always > 0
+  const gr = ctx.createRadialGradient(cx - r*0.32, cy - r*0.32, Math.max(0.5, r*0.04), cx, cy, r);
+  gr.addColorStop(0,    '#f6f2ff');
+  gr.addColorStop(0.45, '#ddd4f0');
+  gr.addColorStop(1,    '#a89ec8');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = gr;
+  ctx.fill();
+
+  // Specular highlight
+  ctx.beginPath();
+  ctx.arc(cx - r*0.3, cy - r*0.3, r * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fill();
+}
+
+// Helper: pixel x of ball centre (for collision, uses integer lane)
+function ballPixelX(laneCur) { return laneCX(laneCur, PLAYER_T); }
+
+// ═══════════════════════════════════════════════════
+//  OBSTACLES
+// ═══════════════════════════════════════════════════
+function spawnObstacles(gs) {
+  // Always at least one rock; 25% chance of a companion in a different lane,
+  // staggered so both can't hit simultaneously
+  const lane1 = Math.floor(Math.random() * 3);
+  gs.obstacles.push({ lane: lane1, t: 0.0, hit: false, scored: false });
+
+  if (Math.random() < 0.25) {
+    // pick a DIFFERENT lane
+    const others = [0, 1, 2].filter(l => l !== lane1);
+    const lane2  = others[Math.floor(Math.random() * others.length)];
+    // stagger it so both rocks don't arrive at the same moment
+    gs.obstacles.push({ lane: lane2, t: -0.15, hit: false, scored: false });
+  }
+}
+
+function drawRock(obs) {
+  if (obs.t <= 0.0) return;
+  const cx    = laneCX(obs.lane, obs.t);
+  const cy    = worldY(obs.t);
+  // Compute scale relative to max lane width (at bottom, t=1)
+  const wNow  = laneW(obs.lane, obs.t);
+  const wMax  = laneW(1, 1);
+  const scale = wNow / wMax;
+  const r     = Math.max(2, 26 * scale);   // never let r go below 2px
+
+  // Shadow
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 0.55, r * 0.9, r * 0.26, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fill();
+
+  // Rock body — gradient in WORLD space (never scaled-space)
+  const rg = ctx.createRadialGradient(
+    cx - r * 0.22, cy - r * 0.22, r * 0.08,   // inner circle
+    cx,            cy,            r             // outer circle
+  );
+  rg.addColorStop(0,    '#c2c1d2');
+  rg.addColorStop(0.55, '#8a8aa2');
+  rg.addColorStop(1,    '#505062');
+
+  // Draw blob path using world-space coordinates (scale applied manually)
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.beginPath();
+  ctx.moveTo(22, 1);
+  ctx.bezierCurveTo(24, 13,  14, 26,  1, 26);
+  ctx.bezierCurveTo(-12, 26, -26, 15, -26, 1);
+  ctx.bezierCurveTo(-26, -13, -13, -26, 1, -26);
+  ctx.bezierCurveTo(15, -26, 22, -11, 22, 1);
+  ctx.closePath();
+  ctx.restore();  // restore BEFORE filling so gradient coords are world-space
+
+  ctx.fillStyle = rg;
+  ctx.fill();
+
+  // Crack lines — re-enter scaled context for the lines only
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = 'rgba(30,30,50,0.38)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(-3, -11); ctx.lineTo(2, 3); ctx.lineTo(-9, 13); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, -7);   ctx.lineTo(13, 7); ctx.stroke();
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════════
+function spawnParticles(lane) {
+  const cx = laneCX(lane, PLAYER_T);
+  const cy = worldY(PLAYER_T);
+  const out = [];
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 2.5 + Math.random() * 4;
+    out.push({ x: cx, y: cy, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2.5,
+               life: 1, decay: 0.032 + Math.random()*0.018,
+               r: 3 + Math.random()*4,
+               color: Math.random() < 0.5 ? '#ff6688' : '#ffcc44' });
+  }
+  return out;
+}
+function tickParticles(parts, dt) {
+  parts.forEach(p => {
+    p.x  += p.vx * dt * 0.055;
+    p.y  += p.vy * dt * 0.055;
+    p.vy += 0.18;
+    p.life -= p.decay;
+  });
+  return parts.filter(p => p.life > 0);
+}
+function drawParticles(parts) {
+  parts.forEach(p => {
+    ctx.globalAlpha = p.life * 0.88;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(0.5, p.r * p.life), 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ═══════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════
+function updateHUD(g) {
+  document.getElementById('h-score').textContent  = g.score;
+  document.getElementById('h-streak').textContent = g.streak;
+  ['h1','h2','h3'].forEach((id, i) =>
+    document.getElementById(id).classList.toggle('lost', i >= g.lives));
+}
+
+// ═══════════════════════════════════════════════════
+//  MCQ
+// ═══════════════════════════════════════════════════
+function showMCQ(g) {
+  g.state   = 'mcq';
+  g.hitLocked = false;
+  cancelAnimationFrame(animId);
+
+  let pool = QS.map((_, i) => i).filter(i => !usedQs.has(i));
+  if (!pool.length) { usedQs.clear(); pool = QS.map((_, i) => i); }
+  const idx = pool[Math.floor(Math.random() * pool.length)];
+  usedQs.add(idx);
+  const q = QS[idx];
+
+  document.getElementById('mcq-question').textContent    = q.q;
+  document.getElementById('mcq-feedback').textContent    = '';
+  document.getElementById('mcq-feedback').className      = '';
+  document.getElementById('mcq-continue').style.display  = 'none';
+  document.getElementById('mcq-continue').onclick        = null;
+
+  const el = document.getElementById('mcq-options');
+  el.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'mcq-opt';
+    btn.innerHTML = `<span class="opt-letter">${String.fromCharCode(65+i)}</span>${opt}`;
+    btn.onclick = () => handleAnswer(i, q, btn, g);
+    el.appendChild(btn);
+  });
+
+  document.getElementById('mcq-overlay').classList.add('show');
+}
+
+function handleAnswer(chosen, q, clickedBtn, g) {
+  // Lock all buttons
+  document.querySelectorAll('.mcq-opt').forEach(b => { b.onclick = null; });
+  const allBtns = document.querySelectorAll('.mcq-opt');
+
+  const correct = chosen === q.ans;
+  clickedBtn.classList.add(correct ? 'correct' : 'wrong');
+  if (!correct) allBtns[q.ans].classList.add('correct');
+
+  const fb = document.getElementById('mcq-feedback');
+  if (correct) {
+    fb.textContent = '✓ Correct! Life recovered. Keep rolling!';
+    fb.className   = 'correct';
+    g.lives = Math.min(3, g.lives + 1);
+    updateHUD(g);
+  } else {
+    fb.textContent = '✗ Wrong. Life lost — correct answer highlighted.';
+    fb.className   = 'wrong';
+    // life was already deducted before MCQ appeared
+  }
+
+  const cont = document.getElementById('mcq-continue');
+  cont.style.display = 'block';
+  cont.textContent   = (g.lives <= 0) ? 'GAME OVER' : 'CONTINUE →';
+  cont.onclick = () => {
+    document.getElementById('mcq-overlay').classList.remove('show');
+    if (g.lives <= 0) {
+      endGame(g);
+    } else {
+      g.state      = 'playing';
+      g.invincible = 2200;         // 2.2 s shield
+      g.lastTime   = performance.now();
+      animId = requestAnimationFrame(loop);
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════
+//  GAME OVER
+// ═══════════════════════════════════════════════════
+function endGame(g) {
+  g.state     = 'gameover';
+  gameRunning = false;
+  document.getElementById('e-score').textContent  = g.score;
+  document.getElementById('e-streak').textContent = g.bestStreak;
+  document.getElementById('end-screen').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════
+//  LEVEL UP
+// ═══════════════════════════════════════════════════
+function tryLevelUp(g) {
+  if (g.score < g.nextLevelAt) return;
+  g.level++;
+  g.speed        = Math.min(2.0, 1.0 + (g.level - 1) * 0.16);
+  g.spawnInterval= Math.max(1300, 2400 - (g.level - 1) * 160);
+  g.nextLevelAt  = g.score + 900 + g.level * 180;
+
+  const fl = document.getElementById('level-flash');
+  document.getElementById('level-flash-text').textContent = `LEVEL ${g.level}`;
+  fl.classList.add('show');
+  setTimeout(() => fl.classList.remove('show'), 1600);
+}
+
+// ═══════════════════════════════════════════════════
+//  INPUT  (key pressed → snap laneCur, laneVis follows)
+// ═══════════════════════════════════════════════════
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (keys[e.code]) return;
+  keys[e.code] = true;
+  if (!gs || gs.state !== 'playing') return;
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+    if (gs.laneCur > 0) gs.laneCur--;
+  }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+    if (gs.laneCur < 2) gs.laneCur++;
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ═══════════════════════════════════════════════════
+//  COLLISION
+//  Uses laneCur (integer) for collision, laneVis for drawing.
+//  Rock must be fully in the bottom zone AND share the same
+//  integer lane as the player.
+// ═══════════════════════════════════════════════════
+const HIT_T_LO = 0.80;
+const HIT_T_HI = 0.93;
+
+function checkCollisions(g) {
+  if (g.invincible > 0 || g.hitLocked) return;
+
+  for (const obs of g.obstacles) {
+    if (obs.hit) continue;
+    if (obs.t < HIT_T_LO || obs.t > HIT_T_HI) continue;
+    if (obs.lane !== g.laneCur) continue;
+
+    // HIT
+    obs.hit     = true;
+    g.hitLocked = true;
+    g.lives--;
+    g.streak = 0;
+    updateHUD(g);
+
+    // Particles + screen flash
+    g.particles.push(...spawnParticles(obs.lane));
+    const hf = document.getElementById('hit-flash');
+    hf.style.opacity = '1';
+    setTimeout(() => { hf.style.opacity = '0'; }, 180);
+
+    // Show MCQ (stops the loop inside)
+    showMCQ(g);
+    return;   // don't process more hits this frame
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════
+function loop(ts) {
+  if (!gs || gs.state !== 'playing') return;
+
+  const dt  = Math.min(48, ts - gs.lastTime);
+  gs.lastTime = ts;
+  const spd = gs.speed;
+
+  // ── Scroll ──
+  scrollPos = (scrollPos + dt * 0.00078 * spd) % 1;
+
+  // ── Visual lane lerp (laneVis → laneCur) ──
+  // Use exponential decay for smooth, speed-independent snap
+  gs.laneVis += (gs.laneCur - gs.laneVis) * (1 - Math.pow(0.012, dt / 16));
+
+  // ── Invincibility ──
+  if (gs.invincible > 0) gs.invincible = Math.max(0, gs.invincible - dt);
+
+  // ── Score / distance ──
+  gs.distance += dt * spd;
+  gs.score = Math.floor(gs.distance / 10);
+  tryLevelUp(gs);
+  updateHUD(gs);
+
+  // ── Spawn ──
+  gs.spawnTimer += dt;
+  if (gs.spawnTimer >= gs.spawnInterval) {
+    gs.spawnTimer = 0;
+    spawnObstacles(gs);
+  }
+
+  // ── Move obstacles ──
+  const obsSpd = 0.00130 * spd;
+  gs.obstacles.forEach(o => { o.t += obsSpd * dt; });
+
+  // ── Collision ──
+  checkCollisions(gs);
+  if (gs.state !== 'playing') return;   // MCQ was triggered
+
+  // ── Streak: rock passed safely ──
+  gs.obstacles.forEach(o => {
+    if (!o.scored && !o.hit && o.t > HIT_T_HI) {
+      o.scored = true;
+      gs.streak++;
+      gs.bestStreak = Math.max(gs.bestStreak, gs.streak);
+    }
+  });
+
+  // ── Cull old obstacles ──
+  gs.obstacles = gs.obstacles.filter(o => o.t <= 1.08);
+
+  // ── Particles ──
+  gs.particles = tickParticles(gs.particles, dt);
+
+  // ══════════════════════════════
+  //  DRAW
+  // ══════════════════════════════
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky
+  const sky = ctx.createLinearGradient(0, 0, 0, VPY + 60);
+  sky.addColorStop(0, '#080620');
+  sky.addColorStop(1, '#18103e');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, VPY + 60);
+
+  drawStars(gs.stars);
+  drawTrack(scrollPos);
+
+  // Rocks back→front
+  gs.obstacles.slice().sort((a, b) => a.t - b.t).forEach(drawRock);
+
+  // Ball  (draws at laneVis — smooth float)
+  drawBall(gs.laneVis, gs.invincible);
+
+  // Particles
+  drawParticles(gs.particles);
+
+  animId = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════
+//  START / RESTART
+// ═══════════════════════════════════════════════════
+function startGame() {
+  cancelAnimationFrame(animId);
+  animId = null;
+
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('end-screen').classList.remove('show');
+  document.getElementById('mcq-overlay').classList.remove('show');
+  document.getElementById('level-flash').classList.remove('show');
+  document.getElementById('hit-flash').style.opacity = '0';
+
+  usedQs.clear();
+  scrollPos  = 0;
+  gameRunning = true;
+
+  gs = initGS();
+  updateHUD(gs);
+  gs.lastTime = performance.now();
+  animId = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════
+//  IDLE ANIMATION (start screen)
+// ═══════════════════════════════════════════════════
+const idleStars = makeStars();
+let idleScroll  = 0;
+function idleLoop(ts) {
+  if (gameRunning) return;
+  idleScroll = (idleScroll + 0.0005) % 1;
+  ctx.clearRect(0, 0, W, H);
+  const sky = ctx.createLinearGradient(0, 0, 0, VPY + 60);
+  sky.addColorStop(0, '#080620');
+  sky.addColorStop(1, '#18103e');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, VPY + 60);
+  ctx.fillStyle = '#100e34';
+  ctx.fillRect(0, VPY, W, H);
+  drawStars(idleStars);
+  drawTrack(idleScroll);
+  drawBall(1.0, 0);
+  requestAnimationFrame(idleLoop);
+}
+requestAnimationFrame(idleLoop);
+</script>
+</body>
+</html>
